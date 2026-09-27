@@ -37,8 +37,10 @@ parse_output() {
     P_COMP_TP=$(echo "$out" | awk '/compress:/{found=1} found && /throughput:/{print $2; exit}')
     P_COMP_P50=$(echo "$out" | awk '/compress:/{found=1} found && /p50:/{print $2, $3; exit}')
     P_COMP_P99=$(echo "$out" | awk '/compress:/{found=1} found && /p99:/{print $2, $3; exit}')
-    # decompress section: second occurrence
+    # decompress section
     P_DECOMP_TP=$(echo "$out" | awk '/decompress:/{found=1} found && /throughput:/{print $2; exit}')
+    P_DECOMP_P50=$(echo "$out" | awk '/decompress:/{found=1} found && /p50:/{print $2, $3; exit}')
+    P_DECOMP_P99=$(echo "$out" | awk '/decompress:/{found=1} found && /p99:/{print $2, $3; exit}')
 }
 
 run_bench() {
@@ -80,7 +82,7 @@ for dataset in "${DATASETS[@]}"; do
             parse_output "$out"
             ALL_AVG_SIZES[$ds_idx]="$P_AVG_SIZE"
 
-            row="${label}|${P_RATIO}|${P_SAVED}|${P_COMP_TP}|${P_DECOMP_TP}|${P_COMP_P50}|${P_COMP_P99}"
+            row="${label}|${P_RATIO}|${P_SAVED}|${P_COMP_TP}|${P_DECOMP_TP}|${P_COMP_P50}|${P_COMP_P99}|${P_DECOMP_P50}|${P_DECOMP_P99}"
             if [ -z "$rows" ]; then
                 rows="$row"
             else
@@ -107,15 +109,15 @@ for i in $(seq 0 $((ds_idx - 1))); do
     echo ""
     echo "### ${name} (avg ${avg} B)"
     echo ""
-    printf "%-14s %7s %7s %12s %12s %10s %10s\n" \
-        "Algorithm" "Ratio" "Saved" "Compress" "Decompress" "p50 comp" "p99 comp"
-    printf "%-14s %7s %7s %12s %12s %10s %10s\n" \
-        "--------------" "-------" "-------" "------------" "------------" "----------" "----------"
+    printf "%-14s %7s %7s %12s %12s %10s %10s %10s %10s\n" \
+        "Algorithm" "Ratio" "Saved" "Compress" "Decompress" "p50 comp" "p99 comp" "p50 decomp" "p99 decomp"
+    printf "%-14s %7s %7s %12s %12s %10s %10s %10s %10s\n" \
+        "--------------" "-------" "-------" "------------" "------------" "----------" "----------" "----------" "----------"
 
     while IFS= read -r row; do
-        IFS='|' read -r label ratio saved comp_tp decomp_tp p50 p99 <<< "$row"
-        printf "%-14s %7s %7s %12s %12s %10s %10s\n" \
-            "$label" "$ratio" "$saved" "${comp_tp} MiB/s" "${decomp_tp} MiB/s" "$p50" "$p99"
+        IFS='|' read -r label ratio saved comp_tp decomp_tp cp50 cp99 dp50 dp99 <<< "$row"
+        printf "%-14s %7s %7s %12s %12s %10s %10s %10s %10s\n" \
+            "$label" "$ratio" "$saved" "${comp_tp} MiB/s" "${decomp_tp} MiB/s" "$cp50" "$cp99" "$dp50" "$dp99"
     done <<< "${ALL_ROWS[$i]}"
 done
 
