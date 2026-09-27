@@ -7,6 +7,7 @@ TRAIN="${BENCH_TRAIN_SAMPLES:-1000}"
 
 DATASETS=(
     "data/github-events.json"
+    "data/github-events-50k.json"
     "data/reddit-comments.json"
     "data/taxi-trips.json"
 )
