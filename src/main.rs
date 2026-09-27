@@ -157,13 +157,33 @@ fn lz4_decompress(data: &[u8]) -> Vec<u8> {
     lz4_flex::decompress_size_prepended(data).expect("lz4 decompress failed")
 }
 
-fn lz4_compress_dict(data: &[u8], dict: &[u8]) -> Vec<u8> {
-    lz4_flex::block::compress_prepend_size_with_dict(data, dict)
+fn lz4_compress_dict(
+    dict_comp: &mut lzzzz::lz4::Compressor<'_>,
+    data: &[u8],
+) -> Vec<u8> {
+    // Create a fresh compressor per value and attach the preloaded dictionary
+    // so each block is independently decompressible.
+    let mut comp =
+        lzzzz::lz4::Compressor::new().expect("failed to create lz4 compressor");
+    comp.attach_dict(Some(dict_comp));
+
+    // Prepend original size as little-endian u32 for the decompressor.
+    let mut out = Vec::with_capacity(4 + lzzzz::lz4::max_compressed_size(data.len()));
+    out.extend_from_slice(&(data.len() as u32).to_le_bytes());
+    comp.next_to_vec(data, &mut out, lzzzz::lz4::ACC_LEVEL_DEFAULT)
+        .expect("lz4 dict compress failed");
+    out
 }
 
 fn lz4_decompress_dict(data: &[u8], dict: &[u8]) -> Vec<u8> {
-    lz4_flex::block::decompress_size_prepended_with_dict(data, dict)
-        .expect("lz4 dict decompress failed")
+    let orig_size = u32::from_le_bytes([data[0], data[1], data[2], data[3]]) as usize;
+    let compressed = &data[4..];
+    let mut decomp =
+        lzzzz::lz4::Decompressor::with_dict(dict).expect("failed to create lz4 decompressor");
+    let result = decomp
+        .next(compressed, orig_size)
+        .expect("lz4 dict decompress failed");
+    result.to_vec()
 }
 
 // ---------------------------------------------------------------------------
@@ -334,8 +354,14 @@ fn bench_lz4_dict(values: &[Vec<u8>], train_samples: usize, iterations: usize) {
     }
     println!("  dictionary size: {} bytes", raw_dict.len());
 
+    // Preload dictionary once into a persistent compressor context.
+    // Each compression call uses attach_dict to reference this context
+    // without rebuilding the hash table.
+    let mut dict_comp = lzzzz::lz4::Compressor::with_dict(raw_dict.as_slice())
+        .expect("failed to create lz4 dict compressor");
+
     for v in values.iter().take(WARMUP_ITERS) {
-        let c = lz4_compress_dict(v, &raw_dict);
+        let c = lz4_compress_dict(&mut dict_comp, v);
         let _ = lz4_decompress_dict(&c, &raw_dict);
     }
 
@@ -346,7 +372,7 @@ fn bench_lz4_dict(values: &[Vec<u8>], train_samples: usize, iterations: usize) {
 
     for v in values.iter().cycle().take(iterations) {
         let t0 = Instant::now();
-        let compressed = lz4_compress_dict(v, &raw_dict);
+        let compressed = lz4_compress_dict(&mut dict_comp, v);
         compress_times.push(t0.elapsed());
 
         total_raw += v.len();

@@ -68,28 +68,28 @@ zstd dictionary, 64 KiB lz4 dictionary. Measured on Apple M4 Pro.
 
 | Algorithm | Ratio | Saved | Compress | Decompress | p50 comp | p99 comp |
 |-----------|------:|------:|---------:|-----------:|---------:|---------:|
-| zstd | 0.273 | 72.7% | 354 MiB/s | 1,076 MiB/s | 4.8 us | 48.1 us |
-| zstd + dict | 0.169 | 83.1% | 475 MiB/s | 1,452 MiB/s | 2.0 us | 55.1 us |
-| lz4 | 0.374 | 62.6% | 820 MiB/s | 3,412 MiB/s | 1.3 us | 30.8 us |
-| lz4 + dict | 0.245 | 75.5% | 205 MiB/s | 2,665 MiB/s | 12.6 us | 49.5 us |
+| zstd | 0.273 | 72.7% | 359 MiB/s | 1,087 MiB/s | 4.8 us | 46.4 us |
+| zstd + dict | 0.169 | 83.1% | 479 MiB/s | 1,427 MiB/s | 2.0 us | 54.0 us |
+| lz4 | 0.374 | 62.6% | 837 MiB/s | 3,233 MiB/s | 1.2 us | 29.8 us |
+| lz4 + dict | 0.245 | 75.5% | 605 MiB/s | 2,581 MiB/s | 2.7 us | 31.7 us |
 
 ### Reddit Comments (avg 534 B)
 
 | Algorithm | Ratio | Saved | Compress | Decompress | p50 comp | p99 comp |
 |-----------|------:|------:|---------:|-----------:|---------:|---------:|
-| zstd | 0.663 | 33.7% | 120 MiB/s | 285 MiB/s | 3.8 us | 10.1 us |
-| zstd + dict | 0.352 | 64.8% | 261 MiB/s | 576 MiB/s | 1.5 us | 8.7 us |
-| lz4 | 0.856 | 14.4% | 586 MiB/s | 2,485 MiB/s | 0.7 us | 3.7 us |
-| lz4 + dict | 0.451 | 54.9% | 42 MiB/s | 1,950 MiB/s | 11.8 us | 19.5 us |
+| zstd | 0.663 | 33.7% | 119 MiB/s | 287 MiB/s | 3.9 us | 10.3 us |
+| zstd + dict | 0.352 | 64.8% | 264 MiB/s | 627 MiB/s | 1.5 us | 8.6 us |
+| lz4 | 0.856 | 14.4% | 578 MiB/s | 2,218 MiB/s | 0.7 us | 3.8 us |
+| lz4 + dict | 0.449 | 55.1% | 201 MiB/s | 1,272 MiB/s | 2.3 us | 6.7 us |
 
 ### NYC Taxi Trips (avg 456 B)
 
 | Algorithm | Ratio | Saved | Compress | Decompress | p50 comp | p99 comp |
 |-----------|------:|------:|---------:|-----------:|---------:|---------:|
-| zstd | 0.630 | 37.0% | 117 MiB/s | 240 MiB/s | 3.6 us | 5.0 us |
-| zstd + dict | 0.128 | 87.2% | 584 MiB/s | 985 MiB/s | 0.7 us | 1.1 us |
-| lz4 | 0.776 | 22.4% | 618 MiB/s | 3,071 MiB/s | 0.7 us | 1.1 us |
-| lz4 + dict | 0.188 | 81.2% | 36 MiB/s | 1,965 MiB/s | 12.0 us | 17.0 us |
+| zstd | 0.630 | 37.0% | 117 MiB/s | 239 MiB/s | 3.6 us | 5.2 us |
+| zstd + dict | 0.128 | 87.2% | 570 MiB/s | 1,002 MiB/s | 0.7 us | 1.2 us |
+| lz4 | 0.776 | 22.4% | 605 MiB/s | 2,683 MiB/s | 0.7 us | 1.0 us |
+| lz4 + dict | 0.183 | 81.7% | 223 MiB/s | 1,463 MiB/s | 1.9 us | 3.2 us |
 
 ### Key observations
 
@@ -103,13 +103,14 @@ less predictable.
 dataset: 83.1% savings on GitHub events, 64.8% on Reddit, 87.2% on taxi
 trips.
 
-**LZ4 without dictionary wins on speed.** Decompression reaches 2.5-3.4
-GiB/s. Compression is 2-6x faster than zstd depending on value size.
+**LZ4 without dictionary wins on speed.** Decompression reaches 2.2-3.2
+GiB/s. Compression is 2-5x faster than zstd depending on value size.
 
-**LZ4 + dict has a compression throughput problem.** The 64 KiB dictionary
-hash table rebuild on every call drops compress throughput to 36-205
-MiB/s. Decompression stays fast (1.9-2.7 GiB/s) because the dictionary
-lookup is cheaper on the decode path.
+**LZ4 + dict is now competitive on throughput.** Using the C liblz4 binding
+(lzzzz crate) with `attach_dict` for preloaded dictionary reuse, compress
+throughput reaches 201-605 MiB/s. The previous pure-Rust lz4_flex crate
+rebuilt the 64 KiB hash table on every call, limiting throughput to
+36-205 MiB/s.
 
 **Without a dictionary, small values compress poorly.** LZ4 saves only
 14.4% on Reddit comments and 22.4% on taxi trips. Plain zstd does better
