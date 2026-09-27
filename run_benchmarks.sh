@@ -12,10 +12,19 @@ DATASETS=(
 )
 
 ALGORITHMS=("zstd" "lz4")
+
 if [ ! -f "$BIN" ]; then
     echo "Binary not found. Building..."
     cargo build --release
 fi
+
+# Decompress .gz files if the uncompressed version is missing.
+for dataset in "${DATASETS[@]}"; do
+    if [ ! -f "$dataset" ] && [ -f "${dataset}.gz" ]; then
+        echo "Decompressing ${dataset}.gz..."
+        gunzip -k "${dataset}.gz"
+    fi
+done
 
 run_bench() {
     local dataset="$1" alg="$2" use_dict="$3"

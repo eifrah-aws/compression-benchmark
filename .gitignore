@@ -1,7 +1,6 @@
 /target
 Cargo.lock
-/data
-*.parquet
+/data/*.json
 .codelite
 *.workspace
 context.md
